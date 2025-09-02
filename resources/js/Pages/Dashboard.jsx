@@ -1,33 +1,58 @@
-import React from 'react';
+import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout';
 import { Head, Link, usePage } from '@inertiajs/react';
 
+export default function Dashboard({ auth }) { // auth di sini sudah berisi user dan userRoles
+    const { bidangList } = usePage().props; // Kita hanya perlu bidangList dari props utama
+    const isAdmin = auth.userRoles.includes('admin_utama') || auth.userRoles.includes('admin_bidang');
 
-export default function Dashboard(){
-const { bidang, user } = usePage().props;
-return (
-<div className="p-6 max-w-7xl mx-auto">
-<Head title="Dashboard" />
-<div className="flex items-center justify-between mb-6">
-<h1 className="text-2xl font-bold">PP Al Imdad Putra</h1>
-<div className="text-sm text-gray-600">{user.name}</div>
-</div>
-<p className="text-gray-600 mb-4">Pilih bidang untuk membuat atau melihat laporan</p>
-<div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-{bidang.map(b => (
-<Link href={route('report.create', b.slug)} key={b.id} className="bg-white shadow p-6 rounded-lg border hover:shadow-lg transition">
-<div className="flex items-center mb-2">
-<div className={`w-10 h-10 rounded-lg text-white flex items-center justify-center mr-3 ${b.color ?? 'bg-blue-500'}`}>
-<i className={`fa ${b.icon ?? 'fa-mosque'}`}></i>
-</div>
-<h3 className="font-semibold">{b.name}</h3>
-</div>
-<p className="text-sm text-gray-600">Klik untuk membuat laporan</p>
-</Link>
-))}
-</div>
-<div className="mt-6">
-<Link href={route('admin.rekap')} className="inline-flex items-center px-4 py-2 bg-gray-900 text-white rounded">Admin Panel</Link>
-</div>
-</div>
-);
+    return (
+        <AuthenticatedLayout
+            user={auth.user} // Kirim user ke layout
+            header={<h2 className="font-semibold text-xl text-gray-800 leading-tight">Dashboard</h2>}
+        >
+            <Head title="Dashboard" />
+
+            <div className="py-12">
+                <div className="max-w-7xl mx-auto sm:px-6 lg:px-8">
+                    <div className="mb-8 px-4 sm:px-0">
+                        <h2 className="text-2xl font-bold text-gray-800 mb-2">Selamat Datang, {auth.user.name}</h2>
+                        <p className="text-gray-600">Pilih bidang untuk membuat laporan atau kelola data melalui admin panel.</p>
+                    </div>
+
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                        {bidangList.map((bidang) => (
+                             <Link
+                                key={bidang.id}
+                                href={route('report.create', bidang.slug)}
+                                className="bg-white rounded-lg shadow-md p-6 transition-all duration-300 ease-in-out hover:transform hover:-translate-y-1 hover:shadow-lg cursor-pointer"
+                            >
+                                <div className="flex items-center mb-4">
+                                    <div className={`${bidang.color} w-12 h-12 rounded-lg flex items-center justify-center text-white mr-4`}>
+                                        <i className={`${bidang.icon} text-xl`}></i>
+                                    </div>
+                                    <h3 className="text-lg font-semibold text-gray-800">{bidang.name}</h3>
+                                </div>
+                                <p className="text-gray-600 text-sm">Klik untuk membuat laporan untuk bidang ini.</p>
+                            </Link>
+                        ))}
+
+                        {isAdmin && (
+                             <Link
+                                href={route('admin.rekap')}
+                                className="bg-white rounded-lg shadow-md p-6 transition-all duration-300 ease-in-out hover:transform hover:-translate-y-1 hover:shadow-lg cursor-pointer"
+                            >
+                                <div className="flex items-center mb-4">
+                                    <div className="bg-gray-600 w-12 h-12 rounded-lg flex items-center justify-center text-white mr-4">
+                                        <i className="fas fa-cog text-xl"></i>
+                                    </div>
+                                    <h3 className="text-lg font-semibold text-gray-800">Admin Panel</h3>
+                                </div>
+                                <p className="text-gray-600 text-sm">Kelola data dan lihat rekap laporan.</p>
+                            </Link>
+                        )}
+                    </div>
+                </div>
+            </div>
+        </AuthenticatedLayout>
+    );
 }

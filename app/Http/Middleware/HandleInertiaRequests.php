@@ -17,7 +17,7 @@ class HandleInertiaRequests extends Middleware
     /**
      * Determine the current asset version.
      */
-    public function version(Request $request): ?string
+    public function version(Request $request): string|null
     {
         return parent::version($request);
     }
@@ -33,6 +33,13 @@ class HandleInertiaRequests extends Middleware
             ...parent::share($request),
             'auth' => [
                 'user' => $request->user(),
+                // TAMBAHKAN BLOK INI: Memuat roles pengguna jika ada yang login
+                'userRoles' => $request->user() ? $request->user()->getRoleNames() : [],
+            ],
+            // TAMBAHKAN BLOK INI: Untuk menampilkan notifikasi flash (success/error)
+            'flash' => [
+                'success' => fn () => $request->session()->get('success'),
+                'error' => fn () => $request->session()->get('error'),
             ],
         ];
     }

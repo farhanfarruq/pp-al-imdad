@@ -1,29 +1,66 @@
 <?php
+
 namespace App\Http\Controllers;
-use Inertia\Inertia; use App\Models\{Bidang, Report}; use Illuminate\Http\Request; use Illuminate\Support\Facades\Auth;
 
+use App\Models\Bidang;
+use App\Models\Report;
+use Illuminate\Http\Request;
+use Inertia\Inertia;
+use Illuminate\Support\Facades\Auth;
 
-class DashboardController extends Controller {
-public function index(){
-$user = Auth::user();
-$bidang = Bidang::select('id','slug','name','icon','color')->get();
-return Inertia::render('Dashboard', [
-'user'=> $user->only(['name','email']),
-'bidang'=>$bidang,
-]);
-}
+class DashboardController extends Controller
+{
+    public function index()
+    {
+        $user = Auth::user();
+        $query = Bidang::query();
 
+        // Jika user adalah admin bidang, hanya tampilkan bidangnya saja
+        if ($user->hasRole('admin_bidang')) {
+            $query->where('id', $user->bidang_id);
+        }
 
-public function rekap(Request $r){
-$this->authorize('viewAny', Report::class); // optional policy
-$query = Report::with(['bidang','tasks','uploads']);
-if($r->filled('start')) $query->whereDate('tanggal','>=',$r->start);
-if($r->filled('end')) $query->whereDate('tanggal','<=',$r->end);
-if($r->filled('bidang')) $query->whereHas('bidang', fn($q)=>$q->where('slug',$r->bidang));
-if($r->user()->hasRole('admin_bidang')){
-// filter ke bidang tertentu jika perlu (mis: simpan di profile user)
-}
-$data = $query->latest()->paginate(20);
-return Inertia::render('Admin/Rekap', ['data'=>$data]);
-}
+        return Inertia::render('Dashboard', [
+            'bidangList' => $query->get(['id', 'slug', 'name', 'icon', 'color']),
+            'userRoles' => $user->getRoleNames()
+        ]);
+    }
+
+    public function rekap(Request $request)
+    {
+        $query = Report::with(['bidang', 'pengurus', 'user']);
+
+        // Filter berdasarkan role
+        if (Auth::user()->hasRole('admin_bidang')) {
+            $query->where('bidang_id', Auth::user()->bidang_id);
+        }
+
+        // Filter berdasarkan request
+        if ($request->filled('tanggal_mulai')) {
+            $query->whereDate('tanggal', '>=', $request->tanggal_mulai);
+        }
+        if ($request->filled('tanggal_akhir')) {
+            $query->whereDate('tanggal', '<=', $request->tanggal_akhir);
+        }
+        if ($request->filled('bidang_id')) {
+            $query->where('bidang_id', $request->bidang_id);
+        }
+
+        $reports = $query->latest()->paginate(10)->withQueryString();
+
+        $reports->getCollection()->transform(function ($report) {
+            $totalTasks = $report->tasks()->count();
+            $completedTasks = $report->tasks()->where('status', 'selesai')->count();
+            $report->completion_rate = $totalTasks > 0 ? round(($completedTasks / $totalTasks) * 100) : 0;
+            $report->completed_tasks = $completedTasks;
+            $report->total_tasks = $totalTasks;
+            return $report;
+        });
+
+        return Inertia::render('Admin/Rekap', [
+            'reports' => $reports,
+            'filters' => $request->only(['tanggal_mulai', 'tanggal_akhir', 'bidang_id']),
+            'bidangList' => Bidang::all(['id', 'name']),
+        ]);
+    }
 }

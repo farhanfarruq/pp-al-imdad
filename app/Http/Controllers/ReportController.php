@@ -1,61 +1,84 @@
 <?php
+
 namespace App\Http\Controllers;
-use Illuminate\Http\Request; use Inertia\Inertia; use Illuminate\Support\Facades\Auth; use Illuminate\Support\Facades\Storage;
-use App\Models\{Bidang, Jobdesk, Report, ReportTask, Upload};
 
+use App\Models\Bidang;
+use App\Models\Jobdesk;
+use App\Models\Pengurus;
+use App\Models\Report;
+use App\Models\ReportTask;
+use App\Models\Upload;
+use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\DB;
+use Inertia\Inertia;
 
-class ReportController extends Controller {
-public function create(Bidang $bidang){
-$jobdesks = Jobdesk::where('bidang_id',$bidang->id)->orderBy('bpk_tab')->get();
-return Inertia::render('Report/Form', [
-'bidang'=>$bidang,
-'jobdesks'=>$jobdesks,
-]);
-}
+class ReportController extends Controller
+{
+    public function create(Bidang $bidang)
+    {
+        return Inertia::render('Report/Form', [
+            'bidang' => $bidang,
+            'pengurusList' => Pengurus::where('bidang_id', $bidang->id)->get(),
+            'jobdeskList' => Jobdesk::where('bidang_id', $bidang->id)->get(),
+        ]);
+    }
 
+    public function store(Request $request)
+    {
+        $request->validate([
+            'tanggal' => 'required|date',
+            'pengurus_id' => 'required|exists:penguruses,id',
+            'bidang_id' => 'required|exists:bidangs,id',
+            'waktu' => 'nullable|in:malam,subuh',
+            'tasks' => 'required|array',
+            'bukti' => 'nullable|file|mimes:jpg,png,pdf|max:5120', // 5MB
+        ]);
 
-public function store(Request $r){
-$r->validate([
-'tanggal'=>'required|date',
-'bidang_id'=>'required|exists:bidangs,id',
-'pengurus_nama'=>'required|string',
-'bpk_tab'=>'nullable|in:malam,subuh',
-'tasks'=>'required|array', // [{jobdesk_id, done, alasan, solusi}]
-'bukti.*'=>'file|mimes:jpg,jpeg,png,pdf|max:5120'
-]);
-$report = Report::create([
-'tanggal'=>$r->tanggal,
-'bidang_id'=>$r->bidang_id,
-'pengurus_nama'=>$r->pengurus_nama,
-'bpk_tab'=>$r->bpk_tab,
-'user_id'=>Auth::id(),
-]);
-foreach($r->tasks as $t){
-ReportTask::create([
-'report_id'=>$report->id,
-'jobdesk_id'=>$t['jobdesk_id'],
-'done'=> (bool)($t['done'] ?? false),
-'alasan'=>$t['alasan'] ?? null,
-'solusi'=>$t['solusi'] ?? null,
-]);
-}
-if($r->hasFile('bukti')){
-foreach($r->file('bukti') as $file){
-$path = $file->store('reports','public');
-Upload::create([
-'report_id'=>$report->id,
-'path'=>$path,
-'mime'=>$file->getClientMimeType(),
-'size'=>$file->getSize(),
-]);
-}
-}
-return redirect()->route('report.show',$report)->with('success','Laporan tersimpan');
-}
+        DB::beginTransaction();
+        try {
+            $report = Report::create([
+                'user_id' => Auth::id(),
+                'bidang_id' => $request->bidang_id,
+                'pengurus_id' => $request->pengurus_id,
+                'tanggal' => $request->tanggal,
+                'waktu' => $request->waktu,
+            ]);
 
+            foreach ($request->tasks as $task) {
+                ReportTask::create([
+                    'report_id' => $report->id,
+                    'jobdesk_id' => $task['id'],
+                    'status' => $task['status'],
+                    'alasan' => $task['status'] === 'tidak_selesai' ? $task['alasan'] : null,
+                    'solusi' => $task['status'] === 'tidak_selesai' ? $task['solusi'] : null,
+                ]);
+            }
 
-public function show(Report $report){
-$report->load(['bidang','tasks.jobdesk','uploads']);
-return Inertia::render('Report/Detail', ['report'=>$report]);
-}
+            if ($request->hasFile('bukti')) {
+                $filePath = $request->file('bukti')->store('bukti', 'public');
+                Upload::create([
+                    'report_id' => $report->id,
+                    'file_path' => $filePath,
+                    'file_name' => $request->file('bukti')->getClientOriginalName(),
+                ]);
+            }
+
+            DB::commit();
+
+            return redirect()->route('dashboard')->with('success', 'Laporan berhasil disubmit!');
+
+        } catch (\Exception $e) {
+            DB::rollBack();
+            return back()->with('error', 'Terjadi kesalahan saat menyimpan laporan: ' . $e->getMessage());
+        }
+    }
+
+    public function show(Report $report)
+    {
+        $this->authorize('view', $report); // Policy
+        
+        $report->load(['bidang', 'pengurus', 'user', 'tasks.jobdesk', 'upload']);
+        return Inertia::render('Report/Detail', ['report' => $report]);
+    }
 }
