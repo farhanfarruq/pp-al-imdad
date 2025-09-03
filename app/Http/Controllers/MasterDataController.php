@@ -7,86 +7,95 @@ use App\Models\Jobdesk;
 use App\Models\Pengurus;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
+use Illuminate\Support\Facades\Redirect;
+use Illuminate\Validation\Rule;
 
 class MasterDataController extends Controller
 {
     public function index()
     {
         return Inertia::render('Admin/MasterData', [
-            'bidangList' => Bidang::all(),
-            'pengurusData' => Pengurus::with('bidang')->get(),
-            'jobdeskData' => Jobdesk::with('bidang')->get()->groupBy('bidang_id'),
+            'bidangList' => Bidang::all(['id', 'name', 'slug']),
+            'pengurusData' => Pengurus::with('bidang')->orderBy('nama')->get(),
+            'jobdeskData' => Jobdesk::all()->groupBy('bidang_id'),
         ]);
     }
 
-    // Pengurus Methods
     public function storePengurus(Request $request)
     {
-        $request->validate([
+        $validated = $request->validate([
             'nama' => 'required|string|max:255',
             'bidang_id' => 'required|exists:bidangs,id',
-            'kelas' => 'nullable|string|max:50',
+            'kelas' => ['nullable', 'string', 'max:50', Rule::requiredIf($request->bidang_id == 1)],
+        ], [
+            'nama.required' => 'Nama pengurus tidak boleh kosong.',
+            'bidang_id.required' => 'Bidang harus dipilih.',
+            'kelas.required' => 'Kelas wajib diisi untuk Bapak Kamar.',
         ]);
-
-        Pengurus::create($request->all());
-
-        return back()->with('success', 'Pengurus berhasil ditambahkan.');
+        Pengurus::create($validated);
+        return Redirect::route('admin.master.index')->with('success', 'Pengurus berhasil ditambahkan.');
     }
 
     public function updatePengurus(Request $request, Pengurus $pengurus)
     {
-        $request->validate([
+        $validated = $request->validate([
             'nama' => 'required|string|max:255',
             'bidang_id' => 'required|exists:bidangs,id',
-            'kelas' => 'nullable|string|max:50',
+            'kelas' => ['nullable', 'string', 'max:50', Rule::requiredIf($request->bidang_id == 1)],
+        ], [
+            'nama.required' => 'Nama pengurus tidak boleh kosong.',
+            'bidang_id.required' => 'Bidang harus dipilih.',
+            'kelas.required' => 'Kelas wajib diisi untuk Bapak Kamar.',
         ]);
-
-        // Jika bidang bukan "bapakamar", pastikan kelas null
-        if ($request->bidang_id != 1) {
-            $request->merge(['kelas' => null]);
-        }
-
-        $pengurus->update($request->all());
-
-        return back()->with('success', 'Pengurus berhasil diperbarui.');
+        $pengurus->update($validated);
+        return Redirect::route('admin.master.index')->with('success', 'Pengurus berhasil diperbarui.');
     }
 
     public function destroyPengurus(Pengurus $pengurus)
     {
+        if ($pengurus->reports()->exists()) {
+            return Redirect::back()->with('error', 'Pengurus tidak dapat dihapus karena memiliki riwayat laporan.');
+        }
         $pengurus->delete();
-        return back()->with('success', 'Pengurus berhasil dihapus.');
+        return Redirect::route('admin.master.index')->with('success', 'Pengurus berhasil dihapus.');
     }
 
-    // Jobdesk Methods
     public function storeJobdesk(Request $request)
     {
-        $request->validate([
+        $validated = $request->validate([
             'deskripsi' => 'required|string',
             'bidang_id' => 'required|exists:bidangs,id',
-            'waktu' => 'nullable|in:malam,subuh',
+            'waktu' => ['nullable', Rule::in(['malam', 'subuh']), Rule::requiredIf($request->bidang_id == 1)],
+        ], [
+            'deskripsi.required' => 'Deskripsi tugas tidak boleh kosong.',
+            'bidang_id.required' => 'Bidang harus dipilih.',
+            'waktu.required' => 'Waktu wajib dipilih untuk jobdesk Bapak Kamar.',
         ]);
-
-        Jobdesk::create($request->all());
-
-        return back()->with('success', 'Jobdesk berhasil ditambahkan.');
+        Jobdesk::create($validated);
+        return Redirect::route('admin.master.index')->with('success', 'Jobdesk berhasil ditambahkan.');
     }
 
     public function updateJobdesk(Request $request, Jobdesk $jobdesk)
     {
-        $request->validate([
+        $validated = $request->validate([
             'deskripsi' => 'required|string',
             'bidang_id' => 'required|exists:bidangs,id',
-            'waktu' => 'nullable|in:malam,subuh',
+            'waktu' => ['nullable', Rule::in(['malam', 'subuh']), Rule::requiredIf($request->bidang_id == 1)],
+        ], [
+            'deskripsi.required' => 'Deskripsi tugas tidak boleh kosong.',
+            'bidang_id.required' => 'Bidang harus dipilih.',
+            'waktu.required' => 'Waktu wajib dipilih untuk jobdesk Bapak Kamar.',
         ]);
-
-        $jobdesk->update($request->all());
-        
-        return back()->with('success', 'Jobdesk berhasil diperbarui.');
+        $jobdesk->update($validated);
+        return Redirect::route('admin.master.index')->with('success', 'Jobdesk berhasil diperbarui.');
     }
 
     public function destroyJobdesk(Jobdesk $jobdesk)
     {
+        if ($jobdesk->reportTasks()->exists()) {
+            return Redirect::back()->with('error', 'Jobdesk tidak dapat dihapus karena sudah pernah digunakan dalam laporan.');
+        }
         $jobdesk->delete();
-        return back()->with('success', 'Jobdesk berhasil dihapus.');
+        return Redirect::route('admin.master.index')->with('success', 'Jobdesk berhasil dihapus.');
     }
 }

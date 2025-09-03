@@ -9,52 +9,61 @@ use App\Http\Controllers\MasterDataController;
 use App\Http\Controllers\ExportController;
 use App\Http\Controllers\ProfileController;
 
-// Halaman login akan menjadi halaman utama jika belum terautentikasi
+/*
+|--------------------------------------------------------------------------
+| Web Routes
+|--------------------------------------------------------------------------
+| File ini mengatur semua routing aplikasi.
+*/
+
+// Halaman utama: Arahkan ke login jika belum masuk, atau ke dashboard jika sudah.
 Route::get('/', function () {
-    return Inertia::render('Auth/Login', [
-        'canLogin' => Route::has('login'),
-        'canRegister' => Route::has('register'),
-        'laravelVersion' => Application::VERSION,
-        'phpVersion' => PHP_VERSION,
-    ]);
+    if (auth()->check()) {
+        return redirect()->route('dashboard');
+    }
+    return Inertia::render('Auth/Login');
 });
 
+// Grup untuk semua pengguna yang sudah login dan terverifikasi.
 Route::middleware(['auth', 'verified'])->group(function () {
-    // Dashboard
+    // Dashboard utama
     Route::get('/dashboard', [DashboardController::class, 'index'])->name('dashboard');
-
-    // Laporan
+    
+    // Fitur Laporan
     Route::get('/report/create/{bidang:slug}', [ReportController::class, 'create'])->name('report.create');
     Route::post('/report', [ReportController::class, 'store'])->name('report.store');
     Route::get('/report/{report}', [ReportController::class, 'show'])->name('report.show');
 
-    // Profile
+    // Fitur Profile
     Route::get('/profile', [ProfileController::class, 'edit'])->name('profile.edit');
     Route::patch('/profile', [ProfileController::class, 'update'])->name('profile.update');
     Route::delete('/profile', [ProfileController::class, 'destroy'])->name('profile.destroy');
+});
 
-    // Admin Routes
-    Route::middleware(['role:admin_utama|admin_bidang'])->prefix('admin')->name('admin.')->group(function () {
-        Route::get('/rekap', [DashboardController::class, 'rekap'])->name('rekap');
+// Grup KHUSUS untuk Admin Utama, dilindungi oleh middleware 'role:admin_utama'.
+Route::middleware(['auth', 'verified', 'role:admin_utama'])->prefix('admin')->as('admin.')->group(function () {
+    
+    // Fitur Rekap
+    Route::get('/rekap', [DashboardController::class, 'rekap'])->name('rekap');
+    Route::get('/rekap/{pengurus}', [DashboardController::class, 'rekapDetail'])->name('rekap.detail');
+    Route::post('/rekap/export', [ExportController::class, 'exportRekap'])->name('rekap.export');
 
-        // Master Data (Hanya untuk Admin Utama)
-        Route::middleware(['role:admin_utama'])->group(function() {
-            Route::get('/master-data', [MasterDataController::class, 'index'])->name('master.index');
-            // Pengurus
-            Route::post('/master-data/pengurus', [MasterDataController::class, 'storePengurus'])->name('master.pengurus.store');
-            Route::put('/master-data/pengurus/{pengurus}', [MasterDataController::class, 'updatePengurus'])->name('master.pengurus.update');
-            Route::delete('/master-data/pengurus/{pengurus}', [MasterDataController::class, 'destroyPengurus'])->name('master.pengurus.destroy');
-            // Jobdesk
-            Route::post('/master-data/jobdesk', [MasterDataController::class, 'storeJobdesk'])->name('master.jobdesk.store');
-            Route::put('/master-data/jobdesk/{jobdesk}', [MasterDataController::class, 'updateJobdesk'])->name('master.jobdesk.update');
-            Route::delete('/master-data/jobdesk/{jobdesk}', [MasterDataController::class, 'destroyJobdesk'])->name('master.jobdesk.destroy');
-        });
+    // Fitur Master Data (CRUD)
+    Route::prefix('master-data')->as('master.')->group(function() {
+        Route::get('/', [MasterDataController::class, 'index'])->name('index');
 
-        // Export
-        Route::get('/export/csv', [ExportController::class, 'exportCsv'])->name('export.csv');
-        Route::get('/export/pdf', [ExportController::class, 'exportPdf'])->name('export.pdf');
+        // Rute untuk Pengurus
+        Route::post('/pengurus', [MasterDataController::class, 'storePengurus'])->name('pengurus.store');
+        Route::put('/pengurus/{pengurus}', [MasterDataController::class, 'updatePengurus'])->name('pengurus.update');
+        Route::delete('/pengurus/{pengurus}', [MasterDataController::class, 'destroyPengurus'])->name('pengurus.destroy');
+
+        // Rute untuk Jobdesk
+        Route::post('/jobdesk', [MasterDataController::class, 'storeJobdesk'])->name('jobdesk.store');
+        Route::put('/jobdesk/{jobdesk}', [MasterDataController::class, 'updateJobdesk'])->name('jobdesk.update');
+        Route::delete('/jobdesk/{jobdesk}', [MasterDataController::class, 'destroyJobdesk'])->name('jobdesk.destroy');
     });
 });
 
-
+// Memuat rute untuk autentikasi (login, register, dll.)
 require __DIR__.'/auth.php';
+
