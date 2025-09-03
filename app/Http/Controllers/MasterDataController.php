@@ -5,20 +5,35 @@ namespace App\Http\Controllers;
 use App\Models\Bidang;
 use App\Models\Jobdesk;
 use App\Models\Pengurus;
+use App\Models\User;
 use Illuminate\Http\Request;
-use Inertia\Inertia;
 use Illuminate\Support\Facades\Redirect;
 use Illuminate\Validation\Rule;
+use Inertia\Inertia;
 
 class MasterDataController extends Controller
 {
     public function index()
     {
+        $users = User::with('bidang', 'roles')->orderBy('name')->get();
+
         return Inertia::render('Admin/MasterData', [
             'bidangList' => Bidang::all(['id', 'name', 'slug']),
             'pengurusData' => Pengurus::with('bidang')->orderBy('nama')->get(),
             'jobdeskData' => Jobdesk::all()->groupBy('bidang_id'),
+            'userData' => $users,
         ]);
+    }
+
+    public function updateUser(Request $request, User $user)
+    {
+        $validated = $request->validate([
+            'bidang_id' => 'nullable|exists:bidangs,id',
+        ]);
+
+        $user->update($validated);
+
+        return Redirect::route('admin.master.index')->with('success', 'Bidang untuk user ' . $user->name . ' berhasil diperbarui.');
     }
 
     public function storePengurus(Request $request)

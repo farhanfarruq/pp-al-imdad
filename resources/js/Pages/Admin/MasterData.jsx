@@ -9,6 +9,103 @@ import InputLabel from '@/Components/InputLabel';
 import TextInput from '@/Components/TextInput';
 import InputError from '@/Components/InputError';
 
+// Komponen untuk Manajemen User
+function UserSection({ userData, bidangList }) {
+    const [isModalOpen, setIsModalOpen] = useState(false);
+    const [editingUser, setEditingUser] = useState(null);
+    const { data, setData, put, processing, errors, reset } = useForm({
+        bidang_id: '',
+    });
+
+    const openModal = (user) => {
+        reset();
+        setEditingUser(user);
+        setData('bidang_id', user.bidang_id || '');
+        setIsModalOpen(true);
+    };
+
+    const closeModal = () => setIsModalOpen(false);
+
+    const handleSubmit = (e) => {
+        e.preventDefault();
+        put(route('admin.master.users.update', { user: editingUser.id }), {
+            onSuccess: () => closeModal(),
+        });
+    };
+
+    return (
+        <div className="bg-white overflow-hidden shadow-sm sm:rounded-lg p-6">
+            <h3 className="text-lg font-semibold mb-4">Manajemen User (Pembuat Laporan)</h3>
+            <p className="text-sm text-gray-600 mb-4">
+                Tetapkan setiap user ke bidang yang sesuai agar mereka dapat membuat laporan. Akun Admin Utama juga harus diatur bidangnya jika ingin membuat laporan.
+            </p>
+            <div className="overflow-x-auto">
+                <table className="min-w-full divide-y divide-gray-200">
+                    <thead className="bg-gray-50">
+                        <tr>
+                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Nama User</th>
+                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Role</th>
+                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Bidang yang Diurus</th>
+                            <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Aksi</th>
+                        </tr>
+                    </thead>
+                    <tbody className="bg-white divide-y divide-gray-200">
+                        {userData.map(user => (
+                            <tr key={user.id}>
+                                <td className="px-6 py-4 whitespace-nowrap font-medium">{user.name}</td>
+                                <td className="px-6 py-4 whitespace-nowrap text-gray-500 capitalize">
+                                    {user.roles.map(role => role.name.replace('_', ' ')).join(', ')}
+                                </td>
+                                <td className="px-6 py-4 whitespace-nowrap">
+                                    {user.bidang ? (
+                                        <span className="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-green-100 text-green-800">
+                                            {user.bidang.name}
+                                        </span>
+                                    ) : (
+                                        <span className="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-red-100 text-red-800">
+                                            Belum diatur
+                                        </span>
+                                    )}
+                                </td>
+                                <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
+                                    <button onClick={() => openModal(user)} className="text-indigo-600 hover:text-indigo-900">
+                                        Atur Bidang
+                                    </button>
+                                </td>
+                            </tr>
+                        ))}
+                    </tbody>
+                </table>
+            </div>
+
+            <Modal show={isModalOpen} onClose={closeModal}>
+                <form onSubmit={handleSubmit} className="p-6">
+                    <h2 className="text-lg font-medium text-gray-900">Atur Bidang untuk {editingUser?.name}</h2>
+                    <div className="mt-4">
+                        <InputLabel htmlFor="user_bidang_id" value="Bidang" />
+                        <select
+                            id="user_bidang_id"
+                            value={data.bidang_id}
+                            onChange={e => setData('bidang_id', e.target.value)}
+                            className="mt-1 block w-full border-gray-300 focus:border-indigo-500 focus:ring-indigo-500 rounded-md shadow-sm"
+                        >
+                            <option value="">-- Hapus dari Bidang --</option>
+                            {bidangList.map(b => <option key={b.id} value={b.id}>{b.name}</option>)}
+                        </select>
+                        <InputError message={errors.bidang_id} className="mt-2" />
+                    </div>
+                    <div className="mt-6 flex justify-end">
+                        <SecondaryButton onClick={closeModal}>Batal</SecondaryButton>
+                        <PrimaryButton className="ml-3" disabled={processing}>
+                            {processing ? 'Menyimpan...' : 'Simpan'}
+                        </PrimaryButton>
+                    </div>
+                </form>
+            </Modal>
+        </div>
+    );
+}
+
 // Komponen untuk Tabel Pengurus
 function PengurusSection({ pengurusData, bidangList }) {
     const [isModalOpen, setIsModalOpen] = useState(false);
@@ -61,7 +158,7 @@ function PengurusSection({ pengurusData, bidangList }) {
     };
 
     return (
-        <div className="bg-white overflow-hidden shadow-sm sm:rounded-lg p-6">
+        <div className="bg-white overflow-hidden shadow-sm sm:rounded-lg p-6 mt-6">
             <div className="flex justify-between items-center mb-4">
                 <h3 className="text-lg font-semibold">Data Pengurus</h3>
                 <PrimaryButton onClick={() => openModal()}>Tambah Pengurus</PrimaryButton>
@@ -136,6 +233,7 @@ function PengurusSection({ pengurusData, bidangList }) {
     );
 }
 
+// Komponen untuk Tabel Jobdesk
 function JobdeskSection({ jobdeskData, bidangList }) {
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
@@ -257,19 +355,24 @@ function JobdeskSection({ jobdeskData, bidangList }) {
     );
 }
 
-export default function MasterData({ auth, bidangList, pengurusData, jobdeskData }) {
+// Komponen Utama Halaman Master Data
+export default function MasterData({ auth, bidangList, pengurusData, jobdeskData, userData }) {
     return (
         <AuthenticatedLayout
             user={auth.user}
             header={
                  <div className="flex justify-between items-center">
                     <h2 className="font-semibold text-xl text-gray-800 leading-tight">Master Data</h2>
+                     <Link href={route('admin.rekap')} className="px-4 py-2 bg-gray-600 text-white rounded-md hover:bg-gray-700 text-sm">
+                        Kembali ke Rekap
+                    </Link>
                  </div>
             }
         >
             <Head title="Master Data" />
             <div className="py-12">
                 <div className="max-w-7xl mx-auto sm:px-6 lg:px-8">
+                    <UserSection userData={userData} bidangList={bidangList} />
                     <PengurusSection pengurusData={pengurusData} bidangList={bidangList} />
                     <JobdeskSection jobdeskData={jobdeskData} bidangList={bidangList} />
                 </div>

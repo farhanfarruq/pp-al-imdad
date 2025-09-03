@@ -17,7 +17,7 @@ class DashboardController extends Controller
         $bidangList = Bidang::all();
         $myReports = [];
 
-        if ($user->hasRole('pengurus_umum')) {
+        if ($user->hasRole('pengurus_umum') || $user->hasRole('admin_utama')) {
             $myReports = Report::where('user_id', $user->id)
                 ->with(['bidang', 'pengurus'])
                 ->latest()
@@ -30,15 +30,17 @@ class DashboardController extends Controller
         ]);
     }
 
-    /**
-     * Menampilkan halaman rekap summary per pengurus (HANYA UNTUK ADMIN).
-     */
     public function rekap()
     {
         $pengurusSummary = Pengurus::with('bidang')
-            ->withCount(['reportTasks' => function ($query) {
-                $query->where('done', false);
-            }])
+            ->withCount([
+                'reportTasks as tugas_selesai_count' => function ($query) {
+                    $query->where('done', true);
+                },
+                'reportTasks as tugas_tidak_dikerjakan_count' => function ($query) {
+                    $query->where('done', false);
+                }
+            ])
             ->orderBy('nama')
             ->get();
 
@@ -47,15 +49,10 @@ class DashboardController extends Controller
         ]);
     }
 
-    /**
-     * Menampilkan halaman detail tugas seorang pengurus (HANYA UNTUK ADMIN).
-     */
     public function rekapDetail(Pengurus $pengurus)
     {
-        // Ambil ID semua report yang dimiliki pengurus ini
         $reportIds = $pengurus->reports()->pluck('id');
 
-        // Ambil semua tugas yang gagal dari report-report tersebut
         $failedTasks = ReportTask::whereIn('report_id', $reportIds)
             ->where('done', false)
             ->with(['report.bidang', 'report.user', 'jobdesk'])

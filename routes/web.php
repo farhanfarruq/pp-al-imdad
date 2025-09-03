@@ -13,34 +13,31 @@ use App\Http\Controllers\ProfileController;
 |--------------------------------------------------------------------------
 | Web Routes
 |--------------------------------------------------------------------------
-| File ini mengatur semua routing aplikasi.
 */
 
-// Halaman utama: Arahkan ke login jika belum masuk, atau ke dashboard jika sudah.
 Route::get('/', function () {
-    if (auth()->check()) {
-        return redirect()->route('dashboard');
-    }
-    return Inertia::render('Auth/Login');
+    return Inertia::render('Welcome', [
+        'canLogin' => Route::has('login'),
+        'canRegister' => Route::has('register'),
+    ]);
 });
 
-// Grup untuk semua pengguna yang sudah login dan terverifikasi.
-Route::middleware(['auth', 'verified'])->group(function () {
-    // Dashboard utama
-    Route::get('/dashboard', [DashboardController::class, 'index'])->name('dashboard');
-    
-    // Fitur Laporan
-    Route::get('/report/create/{bidang:slug}', [ReportController::class, 'create'])->name('report.create');
-    Route::post('/report', [ReportController::class, 'store'])->name('report.store');
-    Route::get('/report/{report}', [ReportController::class, 'show'])->name('report.show');
+Route::get('/dashboard', [DashboardController::class, 'index'])
+    ->middleware(['auth', 'verified'])->name('dashboard');
 
-    // Fitur Profile
+Route::middleware('auth')->group(function () {
     Route::get('/profile', [ProfileController::class, 'edit'])->name('profile.edit');
     Route::patch('/profile', [ProfileController::class, 'update'])->name('profile.update');
     Route::delete('/profile', [ProfileController::class, 'destroy'])->name('profile.destroy');
+
+    // Mengizinkan admin_utama DAN pengurus_umum untuk mengakses form laporan
+    Route::get('/report/create', [ReportController::class, 'create'])->name('report.create')->middleware('role:admin_utama|pengurus_umum');
+    Route::post('/report', [ReportController::class, 'store'])->name('report.store')->middleware('role:admin_utama|pengurus_umum');
+    
+    Route::get('/report/{report}', [ReportController::class, 'show'])->name('report.show');
 });
 
-// Grup KHUSUS untuk Admin Utama, dilindungi oleh middleware 'role:admin_utama'.
+// Grup KHUSUS untuk Admin Utama
 Route::middleware(['auth', 'verified', 'role:admin_utama'])->prefix('admin')->as('admin.')->group(function () {
     
     // Fitur Rekap
@@ -48,7 +45,7 @@ Route::middleware(['auth', 'verified', 'role:admin_utama'])->prefix('admin')->as
     Route::get('/rekap/{pengurus}', [DashboardController::class, 'rekapDetail'])->name('rekap.detail');
     Route::post('/rekap/export', [ExportController::class, 'exportRekap'])->name('rekap.export');
 
-    // Fitur Master Data (CRUD)
+    // Rute Master Data
     Route::prefix('master-data')->as('master.')->group(function() {
         Route::get('/', [MasterDataController::class, 'index'])->name('index');
 
@@ -61,9 +58,10 @@ Route::middleware(['auth', 'verified', 'role:admin_utama'])->prefix('admin')->as
         Route::post('/jobdesk', [MasterDataController::class, 'storeJobdesk'])->name('jobdesk.store');
         Route::put('/jobdesk/{jobdesk}', [MasterDataController::class, 'updateJobdesk'])->name('jobdesk.update');
         Route::delete('/jobdesk/{jobdesk}', [MasterDataController::class, 'destroyJobdesk'])->name('jobdesk.destroy');
+        
+        // Rute untuk User
+        Route::put('/users/{user}', [MasterDataController::class, 'updateUser'])->name('users.update');
     });
 });
 
-// Memuat rute untuk autentikasi (login, register, dll.)
 require __DIR__.'/auth.php';
-
