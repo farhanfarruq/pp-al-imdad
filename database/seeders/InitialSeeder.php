@@ -17,34 +17,15 @@ class InitialSeeder extends Seeder
      */
     public function run(): void
     {
+        // Membersihkan cache permission agar tidak terjadi konflik
+        app()[\Spatie\Permission\PermissionRegistrar::class]->forgetCachedPermissions();
+
         // 1. Create Roles
-        $roleAdminUtama = Role::create(['name' => 'admin_utama']);
-        $roleAdminBidang = Role::create(['name' => 'admin_bidang']);
-        $rolePengurus = Role::create(['name' => 'pengurus']);
+        $roleAdminUtama = Role::firstOrCreate(['name' => 'admin_utama']);
+        $roleAdminBidang = Role::firstOrCreate(['name' => 'admin_bidang']);
+        $rolePengurus = Role::firstOrCreate(['name' => 'pengurus']);
 
-        // 2. Create Users
-        $adminUtama = User::create([
-            'name' => 'Admin Utama',
-            'email' => 'adminutama@gmail.com',
-            'password' => Hash::make('adminpengurus2025'),
-        ]);
-        $adminUtama->assignRole($roleAdminUtama);
-
-        $adminBapakKamar = User::create([
-            'name' => 'Admin Bapak Kamar',
-            'email' => 'adminbapakamar@gmail.com',
-            'password' => Hash::make('admin123'),
-        ]);
-        $adminBapakKamar->assignRole($roleAdminBidang);
-
-        $pengurusUser = User::create([
-            'name' => 'Pengurus Umum',
-            'email' => 'pengurus@gmail.com',
-            'password' => Hash::make('pengurus123'),
-        ]);
-        $pengurusUser->assignRole($rolePengurus);
-
-        // 3. Create Bidang
+        // 2. Create Bidang (DIPINDAHKAN KE ATAS)
         $bidangData = [
             ['id' => 1, 'slug' => 'bapakamar', 'name' => 'Pengurus Bapak Kamar', 'icon' => 'fas fa-bed', 'color' => 'bg-blue-500'],
             ['id' => 2, 'slug' => 'bk_keamanan', 'name' => 'Pengurus BK dan Keamanan', 'icon' => 'fas fa-shield-alt', 'color' => 'bg-green-500'],
@@ -54,13 +35,38 @@ class InitialSeeder extends Seeder
             ['id' => 6, 'slug' => 'kesehatan', 'name' => 'Pengurus Kesehatan', 'icon' => 'fas fa-heartbeat', 'color' => 'bg-red-500'],
         ];
         foreach ($bidangData as $data) {
-            Bidang::create($data);
+            Bidang::updateOrCreate(['id' => $data['id']], $data);
         }
 
-        // Assign Admin Bapak Kamar to Bidang Bapak Kamar
-        $adminBapakKamar->bidang_id = 1; // ID for bapakamar
-        $adminBapakKamar->save();
+        // 3. Create Users (SETELAH BIDANG DIBUAT)
+        $adminUtama = User::firstOrCreate(
+            ['email' => 'adminutama@gmail.com'],
+            [
+                'name' => 'Admin Utama',
+                'password' => Hash::make('adminpengurus2025'),
+            ]
+        );
+        $adminUtama->assignRole($roleAdminUtama);
 
+        // Sekarang aman untuk membuat user ini karena Bidang ID 1 sudah ada
+        $adminBapakKamar = User::firstOrCreate(
+            ['email' => 'adminbapakamar@gmail.com'],
+            [
+                'name' => 'Admin Bapak Kamar',
+                'password' => Hash::make('admin123'),
+                'bidang_id' => 1,
+            ]
+        );
+        $adminBapakKamar->assignRole($roleAdminBidang);
+
+        $pengurusUser = User::firstOrCreate(
+            ['email' => 'pengurus@gmail.com'],
+            [
+                'name' => 'Pengurus Umum',
+                'password' => Hash::make('pengurus123'),
+            ]
+        );
+        $pengurusUser->assignRole($rolePengurus);
 
         // 4. Create Pengurus
         $pengurusData = [
@@ -82,7 +88,7 @@ class InitialSeeder extends Seeder
         ];
         foreach ($pengurusData as $bidangId => $list) {
             foreach($list as $p) {
-                Pengurus::create(['bidang_id' => $bidangId, 'nama' => $p['nama'], 'kelas' => $p['kelas'] ?? null]);
+                Pengurus::firstOrCreate(['bidang_id' => $bidangId, 'nama' => $p['nama']], ['kelas' => $p['kelas'] ?? null]);
             }
         }
 
@@ -112,19 +118,19 @@ class InitialSeeder extends Seeder
             ['bidang_id' => 1, 'waktu' => 'subuh', 'deskripsi' => 'Memastikan santri berangkat sekolah sebelum pukul 07'],
             ['bidang_id' => 1, 'waktu' => 'subuh', 'deskripsi' => 'Lainnya'],
 
-            ['bidang_id' => 2, 'deskripsi' => 'Melakukan patroli keamanan pondok'],
-            ['bidang_id' => 2, 'deskripsi' => 'Mengecek kondisi gerbang dan pagar'],
-            ['bidang_id' => 3, 'deskripsi' => 'Mengkoordinir kegiatan ekstrakurikuler'],
-            ['bidang_id' => 3, 'deskripsi' => 'Mempersiapkan perlombaan'],
-            ['bidang_id' => 4, 'deskripsi' => 'Mengecek kebersihan kamar santri'],
-            ['bidang_id' => 4, 'deskripsi' => 'Koordinasi piket kebersihan'],
-            ['bidang_id' => 5, 'deskripsi' => 'Pemeliharaan fasilitas pondok'],
-            ['bidang_id' => 5, 'deskripsi' => 'Perbaikan kerusakan ringan'],
-            ['bidang_id' => 6, 'deskripsi' => 'Pemeriksaan kesehatan santri'],
-            ['bidang_id' => 6, 'deskripsi' => 'Penanganan santri sakit'],
+            ['bidang_id' => 2, 'waktu' => null, 'deskripsi' => 'Melakukan patroli keamanan pondok'],
+            ['bidang_id' => 2, 'waktu' => null, 'deskripsi' => 'Mengecek kondisi gerbang dan pagar'],
+            ['bidang_id' => 3, 'waktu' => null, 'deskripsi' => 'Mengkoordinir kegiatan ekstrakurikuler'],
+            ['bidang_id' => 3, 'waktu' => null, 'deskripsi' => 'Mempersiapkan perlombaan'],
+            ['bidang_id' => 4, 'waktu' => null, 'deskripsi' => 'Mengecek kebersihan kamar santri'],
+            ['bidang_id' => 4, 'waktu' => null, 'deskripsi' => 'Koordinasi piket kebersihan'],
+            ['bidang_id' => 5, 'waktu' => null, 'deskripsi' => 'Pemeliharaan fasilitas pondok'],
+            ['bidang_id' => 5, 'waktu' => null, 'deskripsi' => 'Perbaikan kerusakan ringan'],
+            ['bidang_id' => 6, 'waktu' => null, 'deskripsi' => 'Pemeriksaan kesehatan santri'],
+            ['bidang_id' => 6, 'waktu' => null, 'deskripsi' => 'Penanganan santri sakit'],
         ];
         foreach ($jobdeskData as $data) {
-            Jobdesk::create($data);
+            Jobdesk::firstOrCreate($data);
         }
     }
 }

@@ -12,9 +12,13 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 use Inertia\Inertia;
+use Illuminate\Foundation\Auth\Access\AuthorizesRequests; // 1. TAMBAHKAN BARIS INI
+
 
 class ReportController extends Controller
 {
+        use AuthorizesRequests; // 2. TAMBAHKAN BARIS INI
+
     public function create(Bidang $bidang)
     {
         return Inertia::render('Report/Form', [
@@ -43,6 +47,8 @@ class ReportController extends Controller
                 'pengurus_id' => $request->pengurus_id,
                 'tanggal' => $request->tanggal,
                 'waktu' => $request->waktu,
+                'status' => 'selesai', // Asumsi status default
+
             ]);
 
             foreach ($request->tasks as $task) {
@@ -76,7 +82,8 @@ class ReportController extends Controller
 
     public function show(Report $report)
     {
-        $this->authorize('view', $report); // Policy
+        $this->authorize('view', $report); // Baris ini sekarang akan berfungsi
+
         
         $report->load(['bidang', 'pengurus', 'user', 'tasks.jobdesk', 'upload']);
         return Inertia::render('Report/Detail', ['report' => $report]);

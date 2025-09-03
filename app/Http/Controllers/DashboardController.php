@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\Bidang;
 use App\Models\Report;
+use App\Models\ReportTask; // 1. Tambahkan model ReportTask
 use Illuminate\Http\Request;
 use Inertia\Inertia;
 use Illuminate\Support\Facades\Auth;
@@ -13,54 +14,67 @@ class DashboardController extends Controller
     public function index()
     {
         $user = Auth::user();
-        $query = Bidang::query();
+        $user->load('roles'); 
 
-        // Jika user adalah admin bidang, hanya tampilkan bidangnya saja
-        if ($user->hasRole('admin_bidang')) {
-            $query->where('id', $user->bidang_id);
+        $bidangList = collect();
+        $reports = collect();
+
+        if ($user->hasRole('admin_utama') || $user->hasRole('pengurus')) {
+            $bidangList = Bidang::all();
+        }
+
+        if ($user->hasRole('admin_bidang') && $user->bidang_id) {
+            $reports = Report::where('bidang_id', $user->bidang_id)
+                ->with(['bidang', 'user'])
+                ->latest()
+                ->get();
+            $bidangList = Bidang::where('id', $user->bidang_id)->get();
         }
 
         return Inertia::render('Dashboard', [
-            'bidangList' => $query->get(['id', 'slug', 'name', 'icon', 'color']),
-            'userRoles' => $user->getRoleNames()
+            'bidangList' => $bidangList,
+            'reports' => $reports,
         ]);
     }
 
-    public function rekap(Request $request)
-    {
-        $query = Report::with(['bidang', 'pengurus', 'user']);
+    // --- MULAI PERUBAHAN DI SINI ---
+    // app/Http/Controllers/DashboardController.php
 
-        // Filter berdasarkan role
-        if (Auth::user()->hasRole('admin_bidang')) {
-            $query->where('bidang_id', Auth::user()->bidang_id);
-        }
+public function rekap(Request $request)
+{
+    // Query sekarang dimulai dari ReportTask
+    $query = ReportTask::where('done', false) // <-- PERBAIKAN FINAL DAN PASTI BENAR
+        ->with([
+            'report.bidang',
+            'report.user',
+            'report.pengurus',
+            'jobdesk'
+        ]);
 
-        // Filter berdasarkan request
+    // Terapkan filter tanggal pada data LAPORAN-nya
+    $query->whereHas('report', function ($q) use ($request) {
         if ($request->filled('tanggal_mulai')) {
-            $query->whereDate('tanggal', '>=', $request->tanggal_mulai);
+            $q->whereDate('tanggal', '>=', $request->tanggal_mulai);
         }
         if ($request->filled('tanggal_akhir')) {
-            $query->whereDate('tanggal', '<=', $request->tanggal_akhir);
+            $q->whereDate('tanggal', '<=', $request->tanggal_akhir);
         }
-        if ($request->filled('bidang_id')) {
-            $query->where('bidang_id', $request->bidang_id);
-        }
+    });
 
-        $reports = $query->latest()->paginate(10)->withQueryString();
-
-        $reports->getCollection()->transform(function ($report) {
-            $totalTasks = $report->tasks()->count();
-            $completedTasks = $report->tasks()->where('status', 'selesai')->count();
-            $report->completion_rate = $totalTasks > 0 ? round(($completedTasks / $totalTasks) * 100) : 0;
-            $report->completed_tasks = $completedTasks;
-            $report->total_tasks = $totalTasks;
-            return $report;
+    // Terapkan filter bidang pada data LAPORAN-nya
+    if ($request->filled('bidang_id')) {
+        $query->whereHas('report', function ($q) use ($request) {
+            $q->where('bidang_id', $request->bidang_id);
         });
-
-        return Inertia::render('Admin/Rekap', [
-            'reports' => $reports,
-            'filters' => $request->only(['tanggal_mulai', 'tanggal_akhir', 'bidang_id']),
-            'bidangList' => Bidang::all(['id', 'name']),
-        ]);
     }
+
+    $failedTasks = $query->latest()->paginate(15)->withQueryString();
+
+    return Inertia::render('Admin/Rekap', [
+        'failedTasks' => $failedTasks,
+        'filters' => $request->only(['tanggal_mulai', 'tanggal_akhir', 'bidang_id']),
+        'bidangList' => Bidang::all(['id', 'name']),
+    ]);
+}
+    // --- AKHIR PERUBAHAN ---
 }
