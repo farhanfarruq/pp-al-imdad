@@ -1,9 +1,11 @@
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout';
 import { Head, Link } from '@inertiajs/react';
-import { format } from 'date-fns';
-import { id } from 'date-fns/locale';
+import RekapTable from '@/Components/RekapTable'; // Pastikan import ini ada
+import { useRekap } from '@/hooks/useRekap'; // Pastikan import ini ada
 
-export default function Rekap({ auth, reports }) {
+export default function Rekap({ auth, reports, bidangs, filters: initialFilters }) {
+    const { filters, handleFilterChange } = useRekap(initialFilters);
+
     return (
         <AuthenticatedLayout
             user={auth.user}
@@ -15,60 +17,37 @@ export default function Rekap({ auth, reports }) {
                 <div className="max-w-7xl mx-auto sm:px-6 lg:px-8">
                     <div className="bg-white overflow-hidden shadow-sm sm:rounded-lg">
                         <div className="p-6 text-gray-900">
-                            <div className="flex justify-between items-center mb-4">
-                                <h3 className="text-lg font-bold">Daftar Semua Laporan</h3>
-                                <div>
-                                    <a href={route('export.rekap.excel')} className="bg-green-500 hover:bg-green-700 text-white font-bold py-2 px-4 rounded mr-2">
-                                        Export Excel
-                                    </a>
-                                    <a href={route('export.rekap.pdf')} className="bg-red-500 hover:bg-red-700 text-white font-bold py-2 px-4 rounded">
-                                        Export PDF
-                                    </a>
-                                </div>
+                            {/* Filter Section */}
+                            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+                                <input
+                                    type="text"
+                                    name="search"
+                                    value={filters.search || ''}
+                                    onChange={handleFilterChange}
+                                    placeholder="Cari nama pengurus..."
+                                    className="border-gray-300 focus:border-indigo-500 focus:ring-indigo-500 rounded-md shadow-sm"
+                                />
+                                <select
+                                    name="bidang"
+                                    value={filters.bidang || ''}
+                                    onChange={handleFilterChange}
+                                    className="border-gray-300 focus:border-indigo-500 focus:ring-indigo-500 rounded-md shadow-sm"
+                                >
+                                    <option value="">Semua Bidang</option>
+                                    {bidangs.map(bidang => (
+                                        <option key={bidang.id} value={bidang.id}>
+                                            {bidang.name}
+                                        </option>
+                                    ))}
+                                </select>
                             </div>
-                            <table className="min-w-full divide-y divide-gray-200">
-                                <thead className="bg-gray-50">
-                                    <tr>
-                                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">No</th>
-                                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Judul Laporan</th>
-                                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Pembuat</th>
-                                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Bidang</th>
-                                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Tanggal</th>
-                                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Aksi</th>
-                                    </tr>
-                                </thead>
-                                <tbody className="bg-white divide-y divide-gray-200">
-                                    {/* PERBAIKAN: Gunakan reports.data.map dan tambahkan pengecekan */}
-                                    {reports && reports.data && reports.data.length > 0 ? (
-                                        reports.data.map((report, index) => (
-                                            <tr key={report.id}>
-                                                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{reports.meta.from + index}</td>
-                                                <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">{report.title}</td>
-                                                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{report.user.name}</td>
-                                                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{report.bidang.nama_bidang}</td>
-                                                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                                                    {format(new Date(report.date), "d MMMM yyyy", { locale: id })}
-                                                </td>
-                                                <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
-                                                    <Link href={route('admin.rekap.detail', report.id)} className="text-indigo-600 hover:text-indigo-900">
-                                                        Detail
-                                                    </Link>
-                                                </td>
-                                            </tr>
-                                        ))
-                                    ) : (
-                                        <tr>
-                                            <td colSpan="6" className="px-6 py-4 text-center text-sm text-gray-500">
-                                                Tidak ada data laporan.
-                                            </td>
-                                        </tr>
-                                    )}
-                                </tbody>
-                            </table>
 
-                            {/* Tambahkan Navigasi Paginasi */}
+                            {/* Komponen Tabel Rekap */}
+                            <RekapTable reports={reports} />
+
+                            {/* Paginasi */}
                             <div className="mt-4">
-                                {reports.links && (
+                                {reports && reports.meta && reports.data.length > 0 && (
                                     <div className="flex justify-between items-center">
                                         <div className="text-sm text-gray-700">
                                             Menampilkan {reports.meta.from} sampai {reports.meta.to} dari {reports.meta.total} hasil
@@ -77,7 +56,7 @@ export default function Rekap({ auth, reports }) {
                                             {reports.meta.links.map((link, index) => (
                                                 <Link
                                                     key={index}
-                                                    href={link.url}
+                                                    href={link.url || '#'}
                                                     className={`px-3 py-1 border rounded-md text-sm ${link.active ? 'bg-indigo-500 text-white' : 'bg-white'} ${!link.url ? 'text-gray-400 cursor-not-allowed' : 'hover:bg-gray-50'}`}
                                                     dangerouslySetInnerHTML={{ __html: link.label }}
                                                     as="button"
@@ -94,4 +73,4 @@ export default function Rekap({ auth, reports }) {
             </div>
         </AuthenticatedLayout>
     );
-}
+}   

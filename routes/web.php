@@ -1,45 +1,47 @@
 <?php
 
-use Illuminate\Support\Facades\Route;
+use App\Http\Controllers\DashboardController;
+use App\Http\Controllers\MasterDataController;
 use App\Http\Controllers\ProfileController;
 use App\Http\Controllers\ReportController;
-use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\ExportController;
-use App\Http\Controllers\MasterDataController;
+use Illuminate\Support\Facades\Route;
+use Inertia\Inertia;
 
-// Redirect halaman utama ke login
+// RUTE PUBLIK (TIDAK PERLU LOGIN)
 Route::get('/', function () {
-    return redirect()->route('login');
+    return Inertia::render('Welcome', [ 'canLogin' => Route::has('login'), 'canRegister' => Route::has('register') ]);
 });
+Route::get('/reports', [ReportController::class, 'index'])->name('reports.index');
+Route::get('/reports/{report}', [ReportController::class, 'show'])->name('reports.show');
 
-// Grup untuk semua user yang sudah terotentikasi (login)
+// RUTE YANG HARUS LOGIN
 Route::middleware('auth')->group(function () {
-    // Rute Dashboard
     Route::get('/dashboard', [DashboardController::class, 'index'])->name('dashboard');
 
-    // Rute Profil Pengguna
     Route::get('/profile', [ProfileController::class, 'edit'])->name('profile.edit');
     Route::patch('/profile', [ProfileController::class, 'update'])->name('profile.update');
     Route::delete('/profile', [ProfileController::class, 'destroy'])->name('profile.destroy');
 
-    // Rute Laporan (Bisa diakses semua user yang login)
     Route::get('/report/create', [ReportController::class, 'create'])->name('report.create');
     Route::post('/report', [ReportController::class, 'store'])->name('report.store');
-    Route::get('/report/{report}', [ReportController::class, 'show'])->name('report.show');
-
-    // Grup KHUSUS untuk Admin Panel (Hanya bisa diakses oleh 'admin_utama')
-    Route::middleware('role:admin_utama')->group(function () {
-        // Menggunakan nama fungsi yang benar: rekap() dan rekapDetail()
-        Route::get('/admin/rekap', [ReportController::class, 'rekap'])->name('admin.rekap');
-        Route::get('/admin/rekap/{report}', [ReportController::class, 'rekapDetail'])->name('admin.rekap.detail');
-        
-        Route::get('/admin/master-data', [MasterDataController::class, 'index'])->name('admin.master-data');
-
-        // Rute untuk ekspor data (hanya admin)
-        Route::get('/export/rekap/excel', [ExportController::class, 'exportRekapToExcel'])->name('export.rekap.excel');
-        Route::get('/export/rekap/pdf', [ExportController::class, 'exportRekapToPdf'])->name('export.rekap.pdf');
-    });
+    Route::get('/report/{report}/edit', [ReportController::class, 'edit'])->name('report.edit');
+    Route::put('/report/{report}', [ReportController::class, 'update'])->name('report.update');
+    Route::delete('/report/{report}', [ReportController::class, 'destroy'])->name('report.destroy');
 });
 
-// Memuat rute-rute otentikasi (login, register, dll.)
+// RUTE KHUSUS ADMIN UTAMA
+Route::middleware(['auth', 'role:admin_utama'])->prefix('admin')->group(function () {
+    Route::get('/master-data', [MasterDataController::class, 'index'])->name('master-data.index');
+    Route::post('/master-data/bidang', [MasterDataController::class, 'storeBidang'])->name('master-data.storeBidang');
+    Route::post('/master-data/jobdesk', [MasterDataController::class, 'storeJobdesk'])->name('master-data.storeJobdesk');
+    Route::put('/master-data/user/{user}', [MasterDataController::class, 'updateUser'])->name('master-data.updateUser');
+
+    Route::get('/rekap', [ReportController::class, 'rekap'])->name('admin.rekap');
+    Route::get('/rekap/{report}', [ReportController::class, 'rekapDetail'])->name('admin.rekap.detail');
+    
+    Route::get('/export/rekap/excel', [ExportController::class, 'exportRekapToExcel'])->name('export.rekap.excel');
+    Route::get('/export/rekap/pdf', [ExportController::class, 'exportRekapToPdf'])->name('export.rekap.pdf');
+});
+
 require __DIR__.'/auth.php';
